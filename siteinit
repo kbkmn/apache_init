@@ -1,0 +1,167 @@
+#!/bin/bash
+
+#BEGIN INIT INFO
+# Provides:       apache
+# Required-Start: $local_fs $remote_fs $network
+# Required-Stop:
+# Default-Start:  3 5
+# Default-Stop:   0 1 2 6
+### END INIT INFO
+
+# Source function library.
+#========================================================================================================
+#. /etc/rc.status
+
+SU_USER="USER"
+HTTPD="/usr/sbin/httpd"
+HTTPD_CONF_FILE='/home/PROJECT/conf/apache/httpd.conf'
+HTTPD_SERVER_ROOT=$(grep ^ServerRoot "$HTTPD_CONF_FILE" 2>/dev/null |awk '{print $2}')
+HTTPD_PID_FILE=$(grep ^PidFile "$HTTPD_CONF_FILE" 2>/dev/null |awk -v root="$HTTPD_SERVER_ROOT" '{if($2!~/^\//)$2=root"/"$2; print $2}')
+
+if [ ! -f "$HTTPD_CONF_FILE" ]; then
+    echo "No config file: $HTTPD_CONF_FILE"
+    exit 1
+fi
+
+if [ ! "$HTTPD_PID_FILE" ]; then
+    echo "No directive PidFile: $HTTPD_PID_FILE"
+    exit 1
+fi
+
+HTTPD_START="$HTTPD"
+# -f $HTTPD_CONF_FILE"
+
+RETVAL=0
+
+start(){
+	#Check running apache
+	if [ -f "$HTTPD_PID_FILE" ];then
+	    ps $(cat "$HTTPD_PID_FILE") >/dev/null || rm -f "$HTTPD_PID_FILE"
+	fi
+
+	#Startting apache
+	echo -n "Start $HTTPD_START -f $HTTPD_CONF_FILE "
+
+    if [ "$SU_USER" ] && [ $(id -un) = "$SU_USER" ]; then
+	    $HTTPD_START -f $HTTPD_CONF_FILE >/dev/null
+	else
+		$HTTPD_START -f $HTTPD_CONF_FILE 
+	fi
+
+    echo
+    RETVAL="$?"
+        return "$RETVAL"
+}
+
+stop(){
+	echo -n "Stop $HTTPD_START: "
+
+	if [ -f "$HTTPD_PID_FILE" ];then
+	    if [ "$SU_USER" ] && [ $(id -un) = "$SU_USER" ]; then
+		    kill $(cat "$HTTPD_PID_FILE") >/dev/null
+	    else
+            kill $(cat "$HTTPD_PID_FILE") >/dev/null
+	    fi
+	else
+	    echo -n "no pidfile. pkill -f \"$HTTPD_START\""
+	    if [ "$SU_USER" ] && [ $(id -un) = "$SU_USER" ]; then
+		    pkill -f "$HTTPD_START" >/dev/null 2>&1
+	    else
+            pkill -f "$HTTPD_START" >/dev/null 2>&1
+	    fi
+	fi
+
+	echo
+	    RETVAL=$?
+	return "$RETVAL"
+}
+
+reload(){
+	configtest || return 1
+	echo -n "Reload $HTTPD_START: "
+
+	if [ -f "$HTTPD_PID_FILE" ];then
+	    if [ "$SU_USER" ] && [ $(id -un) = "$SU_USER" ]; then
+		    kill -USR1 $(cat "$HTTPD_PID_FILE")
+	    else
+            kill -USR1 $(cat "$HTTPD_PID_FILE")
+	    fi
+	else
+		echo -n "No pidfile!"
+		false
+	fi
+
+    echo
+        RETVAL=$?
+        return "$RETVAL"
+}
+
+restart(){
+	stop
+	sleep 1
+	start
+}
+
+status(){
+	echo -n "Status $HTTPD_START: "
+
+	if [ -f "$HTTPD_PID_FILE" ]; then
+		ps $(cat "$HTTPD_PID_FILE") >/dev/null
+		echo -n "running"
+	else
+		if pgrep -f "$HTTPD_START"; then
+			echo -n "no pidfile on running process"
+		else
+			echo -n "no running"
+		fi
+	fi
+
+    echo
+        RETVAL=$?
+        return "$RETVAL"
+}
+
+configtest(){
+	echo -n "Check $HTTPD_START: "
+
+	if [ "$SU_USER" ] && [ $(id -un) = "$SU_USER" ]; then
+	    "$HTTPD_START" -t
+	else
+        "$HTTPD_START" -t
+	fi
+
+    echo
+        RETVAL=$?
+        return "$RETVAL"
+}
+
+
+# See how we were called.
+case "$1" in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	restart)
+		restart
+		;;
+	reload)
+		reload
+		;;
+	status)
+		status
+		;;
+	configtest)
+		configtest
+		;;
+	graceful)
+		reload
+		;;
+	*)
+		echo "${0##*/} {start|stop|restart|reload|graceful|status|configtest}"
+		RETVAL=1
+esac
+
+exit "$RETVAL"
