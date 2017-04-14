@@ -1,4 +1,4 @@
-All source code included in the "Google reCAPTCHA" Symphony Extension archive
+All source code included in the "Apache Instance creation script" archive
 is, unless otherwise specified, released under the MIT licence as follows:
 
 ----- begin license block -----
